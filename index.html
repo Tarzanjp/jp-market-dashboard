@@ -334,7 +334,10 @@
         <div>
           <span class="eyebrow">03 · Investor Flows</span>
           <h2>🌐 投資部門別データ（週次）</h2>
-          <p class="sub">直近の投資部門別売買状況。数値は手動更新できます。</p>
+          <p class="sub">東証プライムの投資部門別売買状況。JPX が週次で公表する一次データ。</p>
+        <!-- 出所と対象週を書く。どの週の数字か分からない「直近週間」は、
+             5週間前の数字でも同じ顔をしてしまう。 -->
+        <p class="data-note" id="investorSource">データ取得中…</p>
         </div>
       </div>
       <div class="card-body">
@@ -344,12 +347,12 @@
             <span class="period">直近週間</span>
           </div>
           <div class="inv-current">
-            <span class="amt buy num" id="invForeignVal">+3,240</span>
+            <span class="amt num" id="invForeignVal">—</span>
             <span class="unit">億円</span>
             <span class="dir-tag buy" id="invForeignTag">ネット買い越し</span>
           </div>
           <div class="inv-form">
-            <input type="number" id="invForeignInput" value="3240" step="10" aria-label="海外投資家 更新値">
+            <input type="number" id="invForeignInput" step="10" aria-label="海外投資家 更新値">
             <button type="button" onclick="updateInvestor('foreign')">更新</button>
           </div>
           <p class="inv-hint">単位：億円（マイナス値＝ネット売り越し）</p>
@@ -361,12 +364,12 @@
             <span class="period">直近週間</span>
           </div>
           <div class="inv-current">
-            <span class="amt buy num" id="invCorpVal">+1,850</span>
+            <span class="amt num" id="invCorpVal">—</span>
             <span class="unit">億円</span>
             <span class="dir-tag buy" id="invCorpTag">ネット買い越し</span>
           </div>
           <div class="inv-form">
-            <input type="number" id="invCorpInput" value="1850" step="10" aria-label="事業法人 更新値">
+            <input type="number" id="invCorpInput" step="10" aria-label="事業法人 更新値">
             <button type="button" onclick="updateInvestor('corp')">更新</button>
           </div>
           <p class="inv-hint">単位：億円（マイナス値＝ネット売り越し）</p>
@@ -390,7 +393,8 @@
   </section>
 
   <footer>
-    本ダッシュボードのセクター別データ・投資部門別データ・銘柄別データはいずれもプリセット／シミュレーション値であり、実際の東証・証券取引所の公開データではありません。
+    <b>01 の売買代金</b>は Yahoo!ファイナンスの売買代金ランキングから集計した実データ、<b>03 の投資部門別</b>は JPX 公表の .xls を直接解析した実データです（各ブロックに対象日・対象週と出所を明記）。
+    一方 <b>02 の業種マトリクス</b>と <b>04 の銘柄別</b>は、まだプリセット／シミュレーション値であり実際の公開データではありません。
     投資判断の参考としてそのまま利用しないでください。実運用時は東証統計情報・投資部門別売買状況等の一次情報に置き換えてご利用ください。
   </footer>
 </main>
@@ -605,13 +609,58 @@
 
   window.updateInvestor = function (key) {
     renderInvestor(key);
+    const src = document.getElementById("investorSource");
+    if (src) {
+      src.innerHTML = '<span class="sim">手入力値を表示中</span>' +
+        (INV_REAL ? ' — <a href="#" id="invReset">JPX の実データに戻す</a>' : "");
+      const r = document.getElementById("invReset");
+      if (r) r.addEventListener("click", function (e) { e.preventDefault(); applyInvestorReal(INV_REAL); });
+    }
     const item = document.getElementById(key === "foreign" ? "invForeign" : "invCorp");
     item.classList.remove("inv-updated-flash");
     void item.offsetWidth; // reflow でアニメーション再トリガー
     item.classList.add("inv-updated-flash");
   };
-  renderInvestor("foreign");
-  renderInvestor("corp");
+  // ---- JPX の実データを流し込む ----
+  // ページの2項目は「海外投資家」と「事業法人（自社株買い）」。JPX の
+  // 投資部門別表ではそれぞれ 海外投資家 / 事業法人 の行にあたる。
+  var INV_REAL = null;
+  var INV_MAP = { foreign: "foreigners", corp: "businessCos" };
+
+  function applyInvestorReal(d) {
+    Object.keys(INV_MAP).forEach(function (k) {
+      var v = ((d.investors || {})[INV_MAP[k]] || {}).netOku;
+      var input = document.getElementById(k === "foreign" ? "invForeignInput" : "invCorpInput");
+      if (typeof v !== "number" || !input) return;
+      input.value = Math.round(v);
+      renderInvestor(k);
+    });
+    var src = document.getElementById("investorSource");
+    var chk = d.selfCheck || {};
+    src.innerHTML =
+      "実データ · 対象週 <b>" + (d.week || "—") + "</b>（" + (d.market || "") + "） · 取得 " +
+      (d.generatedAtJst || "—") + " JST<br>" +
+      "出典: JPX 投資部門別売買状況（.xls を直接解析）。単位 億円、買い越し = 買い − 売り" +
+      (chk.diffPct != null ? "。内訳合計と委託計の差 " + chk.diffPct + "%" : "") +
+      "<br>週次のため直近の取引日より遅れる。";
+  }
+
+  function investorUnavailable(why) {
+    ["invForeign", "invCorp"].forEach(function (id) {
+      var el = document.getElementById(id + "Val");
+      var tag = document.getElementById(id + "Tag");
+      if (el) { el.textContent = "—"; el.className = "amt num"; }
+      if (tag) { tag.textContent = "データなし"; tag.className = "dir-tag"; }
+    });
+    document.getElementById("investorSource").textContent = "実データ取得に失敗: " + why;
+  }
+
+  investorUnavailable("読み込み中");
+  fetch("data/jp-investor.json", { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (d) { INV_REAL = d; applyInvestorReal(d); })
+    .catch(function (e) { investorUnavailable(String(e.message || e)); });
+
 
   /* ============ ④ セクター主導銘柄の監視 ============ */
   const LEADING_STOCKS = [

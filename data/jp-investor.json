@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0",
+  "week": "09/07～09/11",
+  "fileStamp": "260902",
+  "generatedAtJst": "2026-09-20T15:42:00+09:00",
+  "market": "東証プライム",
+  "quality": {
+    "investorType": "live"
+  },
+  "unit": {
+    "raw": "千円",
+    "display": "億円"
+  },
+  "investors": {
+    "foreigners": {
+      "sellThousandYen": 28570404573.0,
+      "buyThousandYen": 28295470330.0,
+      "netThousandYen": -274934243.0,
+      "netOku": -2749.3
+    },
+    "individuals": {
+      "sellThousandYen": 11296015753.0,
+      "buyThousandYen": 11722484832.0,
+      "netThousandYen": 426469079.0,
+      "netOku": 4264.7
+    },
+    "institutions": {
+      "sellThousandYen": 2459940597.0,
+      "buyThousandYen": 1983083839.0,
+      "netThousandYen": -476856758.0,
+      "netOku": -4768.6
+    },
+    "proprietary": {
+      "sellThousandYen": 5349098396.0,
+      "buyThousandYen": 5659975243.0,
+      "netThousandYen": 310876847.0,
+      "netOku": 3108.8
+    },
+    "securitiesCos": {
+      "sellThousandYen": 124261679.0,
+      "buyThousandYen": 123168787.0,
+      "netThousandYen": -1092892.0,
+      "netOku": -10.9
+    },
+    "businessCos": {
+      "sellThousandYen": 568297233.0,
+      "buyThousandYen": 635556070.0,
+      "netThousandYen": 67258837.0,
+      "netOku": 672.6
+    },
+    "investmentTrusts": {
+      "sellThousandYen": 567708473.0,
+      "buyThousandYen": 650422935.0,
+      "netThousandYen": 82714462.0,
+      "netOku": 827.1
+    }
+  },
+  "selfCheck": {
+    "brokerageSell": 42450622602.0,
+    "partsSell": 42450622602.0,
+    "diffPct": 0.0
+  },
+  "source": "JPX 投資部門別売買状況 stock_val_1_260902.xls（.xls を標準ライブラリで解析）",
+  "sourceUrl": "https://www.jpx.co.jp/markets/statistics-equities/investor-type/t13vrt000001yhs9-att/stock_val_1_260902.xls",
+  "note": "週次。JPX が翌週に公表するため、直近の取引日より遅れる。金額は売買代金であり、買い越し額 = 買い − 売り。"
+}
