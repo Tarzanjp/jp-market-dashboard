@@ -36,6 +36,14 @@ jobs:
       - name: Fetch turnover
         run: python automation/fetch_jp_market.py
 
+      # 投資部門別は JPX が週次（火曜前後）で公表する。毎日叩いても新しい
+      # ファイルが無ければ同じ週を upsert するだけなので、曜日で分岐せず毎日
+      # 走らせる — 公表日がずれても取りこぼさない方を選ぶ。
+      # 失敗しても turnover の更新は捨てたくないので continue-on-error。
+      - name: Fetch investor-type (weekly, JPX .xls)
+        continue-on-error: true
+        run: python automation/fetch_jp_investor.py
+
       - name: Commit if changed
         run: |
           git config user.name  "github-actions[bot]"
