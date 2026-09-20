@@ -1,0 +1,51 @@
+# 東証の売買代金を毎営業日に取得して data/ にコミットする。
+#
+# GitHub Pages はこのリポジトリのルートをそのまま配信しているので、data/ に
+# コミットした時点で公開ページにも反映される（ビルド工程は無い）。
+name: JP market data update
+
+on:
+  schedule:
+    # 07:00 UTC = 16:00 JST。東証の大引け（15:00 JST）より後にしてある。
+    # 場中に走らせると、その時点までの部分的な売買代金を「その日の総額」として
+    # 記録してしまう。
+    - cron: "0 7 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jp-data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+        # 依存パッケージのインストールは無し。fetch_jp_market.py は標準
+        # ライブラリだけで動く（意図的な選択。理由はスクリプトの docstring）。
+
+      - name: Fetch turnover
+        run: python automation/fetch_jp_market.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          # 取得しても中身が同じ日（土日・祝日に走った場合など）は空コミットを
+          # 作らない。履歴は date を鍵に upsert しているので再実行しても行は増えない。
+          if git diff --cached --quiet; then
+            echo "変更なし — コミットしない"
+          else
+            git commit -m "data: 東証売買代金スナップショット (auto)"
+            git push
+          fi

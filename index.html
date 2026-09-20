@@ -117,6 +117,8 @@
   .cashout-banner.warn  .cb-val { color: var(--warn); }
   .cashout-banner.danger .cb-val { color: var(--danger); }
 
+  .data-note { font-size: 11.5px; color: var(--text-faint); font-family: var(--mono); margin: -8px 0 14px; line-height: 1.6; }
+  .data-note .sim { color: var(--warn); font-weight: 700; }
   .cashout-scale { display: flex; height: 8px; border-radius: 5px; overflow: hidden; margin-top: 16px; background: var(--card-bg-2); }
   .cashout-scale .seg { position: relative; }
   .cashout-scale .seg.danger { background: rgba(229,72,77,.55); flex: 5; }
@@ -256,13 +258,17 @@
       <div class="cashout-input-row">
         <label for="tseVolumeInput">東証プライム総売買代金</label>
         <div class="input-group">
-          <input type="number" id="tseVolumeInput" value="9.5" step="0.1" min="0" max="20" aria-label="総売買代金（兆円）">
+          <input type="number" id="tseVolumeInput" step="0.1" min="0" max="20" aria-label="総売買代金（兆円）">
           <span class="unit">兆円</span>
         </div>
         <div class="slider-wrap">
-          <input type="range" id="tseVolumeSlider" value="9.5" step="0.1" min="0" max="15" aria-label="総売買代金スライダー">
+          <input type="range" id="tseVolumeSlider" value="0" step="0.1" min="0" max="15" aria-label="総売買代金スライダー">
         </div>
       </div>
+      <!-- 実データの出所と時点。数値だけ出して「いつの・どこの数字か」を書かない
+           のは、このページが以前やっていたこと（プリセット値が5週間固定されたまま、
+           秒を刻む時計だけが動いていた）。 -->
+      <p class="data-note" id="cashoutSource">データ取得中…</p>
 
       <div class="cashout-banner ok" id="cashoutBanner">
         <div class="cb-icon" id="cbIcon">🟢</div>
@@ -454,9 +460,70 @@
     renderCashout(v);
   }
 
-  numInput.addEventListener("input", () => setVolume(parseFloat(numInput.value) || 0, "num"));
-  rangeInput.addEventListener("input", () => setVolume(parseFloat(rangeInput.value) || 0, "range"));
-  renderCashout(parseFloat(numInput.value));
+  const srcNote = document.getElementById("cashoutSource");
+  let REAL = null;   // 実データの値（兆円）。取れていなければ null のまま
+
+  function noteReal(d) {
+    const q = (d.quality || {}).primeTurnover;
+    const cov = d.coverage || {};
+    const qLabel = q === "live" ? "実データ" : q === "proxy" ? "実データ（裾未収束）" : q;
+    const scanned = (cov.pages || 0) * (cov.rowsPerPage || 0);
+    const nPrime = (d.primeTurnover || {}).n || 0;
+    const tail = cov.lastPageContributionPct != null
+      ? "（最終ページの寄与 " + cov.lastPageContributionPct + "%）" : "";
+    srcNote.innerHTML =
+      qLabel + " · 取引日 <b>" + (d.asof || "—") + "</b> · 集計 " + (d.generatedAtJst || "—") + " JST<br>" +
+      "出典: Yahoo!ファイナンス 売買代金ランキング上位 " + scanned + " 銘柄のうち東証プライム " +
+      nPrime + " 銘柄を合計。全銘柄の総和ではない" + tail;
+  }
+
+  function noteSim(v) {
+    srcNote.innerHTML =
+      '<span class="sim">シミュレーション値 ' + v.toFixed(1) + "兆円</span>" +
+      (REAL != null
+        ? " — 実データは " + REAL.toFixed(2) + '兆円。<a href="#" id="cashoutReset">実データに戻す</a>'
+        : " — 実データは未取得");
+    const r = document.getElementById("cashoutReset");
+    if (r) r.addEventListener("click", function (e) { e.preventDefault(); applyReal(); });
+  }
+
+  function applyReal() {
+    if (REAL == null) return;
+    setVolume(REAL);
+    fetch("data/jp-market.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(noteReal);
+  }
+
+  function showUnavailable(why) {
+    // 取れなかったときに 9.5 のような「それらしい数字」を残さない。
+    banner.className = "cashout-banner";
+    cbIcon.textContent = "—";
+    cbTitle.textContent = "売買代金を取得できていません";
+    cbDesc.textContent = "判定はデータが揃ってから表示します。下の入力欄に任意の値を入れると、その値での判定を試せます。";
+    cbVal.innerHTML = '—<span class="u">兆円</span>';
+    scaleMarker.style.left = "0%";
+    numInput.value = "";
+    srcNote.textContent = "実データ取得に失敗: " + why;
+  }
+
+  numInput.addEventListener("input", function () {
+    var v = parseFloat(numInput.value) || 0; setVolume(v); noteSim(v);
+  });
+  rangeInput.addEventListener("input", function () {
+    var v = parseFloat(rangeInput.value) || 0; setVolume(v); noteSim(v);
+  });
+
+  showUnavailable("読み込み中");
+  fetch("data/jp-market.json", { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (d) {
+      var t = (d.primeTurnover || {}).trillionYen;
+      if (typeof t !== "number") throw new Error("primeTurnover が数値でない");
+      REAL = t;
+      setVolume(t);
+      noteReal(d);
+    })
+    .catch(function (e) { showUnavailable(String(e.message || e)); });
+
 
   /* ============ ② 東証33業種 資金流転マトリクス ============ */
   // プリセットのサンプルデータ（直近3ヶ月の相場観に基づくダミー値）
