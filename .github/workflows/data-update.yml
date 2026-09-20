@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: jp-data-update
@@ -62,3 +63,42 @@ jobs:
             git commit -m "data: 東証売買代金スナップショット (auto)"
             git push
           fi
+
+      # Pipeline hỏng mà không ai biết là cách một hệ thống "đúng" trở thành sai
+      # trên thực tế: trang vẫn hiện số cũ với as-of cũ, hoàn toàn trung thực, và
+      # không có gì leo thang. Trước bước này, không workflow nào có một dòng
+      # `if: failure()` — hỏng là im lặng.
+      #
+      # Mở issue thay vì gửi mail: nó nằm ngay trong repo, và tìm-hay-tạo tránh
+      # đẻ ra hàng chục issue giống nhau khi hỏng nhiều ngày liên tiếp.
+      - name: Báo hỏng bằng issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `pipeline hỏng: ${context.workflow}`;
+            const url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              `Workflow **${context.workflow}** thất bại lúc ${new Date().toISOString()}.`,
+              ``,
+              `Log: ${url}`,
+              ``,
+              `Trong lúc chưa sửa, trang vẫn hiển thị dữ liệu của phiên gần nhất lấy được`,
+              `— số đúng, nhưng cũ. Nhãn as-of trên trang cho biết cũ tới đâu.`,
+            ].join("\n");
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: "open", labels: "pipeline",
+            });
+            const hit = open.data.find(i => i.title === title);
+            if (hit) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: hit.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ["pipeline"],
+              });
+            }
