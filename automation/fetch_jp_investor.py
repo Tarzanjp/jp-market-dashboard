@@ -252,6 +252,20 @@ def main() -> int:
     if a.print:
         print(json.dumps(p, ensure_ascii=False, indent=2))
         return 0
+
+    # 同じ週なら書かない。JPX の公表は週1回なので、平日に毎日叩けば5回のうち
+    # 4回は同じ週が返る。書けば generatedAtJst だけ動いた差分が毎日積まれる。
+    prev = None
+    if os.path.exists(OUT):
+        try:
+            with open(OUT, encoding="utf-8") as f:
+                prev = json.load(f).get("fileStamp")
+        except (OSError, json.JSONDecodeError):
+            prev = None
+    if prev and p.get("fileStamp") == prev:
+        log(f"公表ファイル {prev} から更新なし — 書き込みをスキップ")
+        return 0
+
     write(p)
     return 0
 

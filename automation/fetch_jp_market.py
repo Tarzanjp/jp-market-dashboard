@@ -250,6 +250,17 @@ def build() -> dict | None:
     }
 
 
+def previous_asof() -> str | None:
+    """前回書いた取引日。無ければ None。"""
+    if not os.path.exists(OUT):
+        return None
+    try:
+        with open(OUT, encoding="utf-8") as f:
+            return json.load(f).get("asof")
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def write(payload: dict) -> None:
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
@@ -296,6 +307,27 @@ def main() -> int:
     if a.print:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0
+
+    # 取引日が前回から進んでいなければ書かない。
+    #
+    # 祝日カレンダーは持たない。日本の祝日は年16日以上あり、振替休日も大納会も
+    # ある — 表を焼き込めば、その表が古くなった日に静かに嘘をつく。代わりに
+    # 「データ元が新しい取引日を返したか」だけを見る。祝日でも、取引所が臨時に
+    # 閉じた日でも、単にランキングの更新が遅れているだけの日でも、答えは同じ
+    # 「まだ進んでいない」で、対応も同じ「書かない」。
+    #
+    # 書いてしまうと generatedAtJst だけが動いた差分ができ、中身は前営業日の
+    # ままなのに毎日コミットが積まれて「更新された」ように見える。
+    prev = previous_asof()
+    if prev and payload.get("asof") == prev:
+        log(f"取引日 {prev} から進んでいない（休場、または取得元が未更新）— 書き込みをスキップ")
+        return 0
+
+    if prev and payload.get("asof") and payload["asof"] < prev:
+        # 逆行はデータ元の不具合。古い日付で上書きしない。
+        log(f"取得した取引日 {payload['asof']} が前回 {prev} より古い — 上書きしない")
+        return 1
+
     write(payload)
     return 0
 
